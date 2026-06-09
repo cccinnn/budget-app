@@ -197,6 +197,22 @@
 </head>
 <body>
 
+<!-- ══════════════ PASSWORD SCREEN ══════════════ -->
+<div id="lock-screen" style="
+  position:fixed;inset:0;background:var(--bg);z-index:9999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px;
+">
+  <div style="font-size:48px;margin-bottom:16px">🔒</div>
+  <div style="font-size:20px;font-weight:700;margin-bottom:6px">輸入密碼</div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:28px">私人記帳本</div>
+  <input id="pw-input" type="password" placeholder="密碼"
+    style="max-width:260px;text-align:center;font-size:18px;letter-spacing:4px;margin-bottom:12px"
+    onkeydown="if(event.key==='Enter')checkPw()">
+  <button class="btn btn-primary" style="width:260px;padding:12px" onclick="checkPw()">進入</button>
+  <div id="pw-error" style="color:var(--danger);font-size:13px;margin-top:12px;opacity:0;transition:opacity .2s">密碼錯誤，再試一次</div>
+</div>
+
 <!-- ══════════════ PAGE: SALARY ══════════════ -->
 <div class="page active" id="page-salary">
   <div class="page-header">
@@ -665,8 +681,30 @@ function showToast(msg) {
 }
 
 // ══════════════════════════════════
+//  PASSWORD
+// ══════════════════════════════════
+const CORRECT_PW = '1234'; // ← 改成你想要的密碼
+
+function checkPw() {
+  const val = document.getElementById('pw-input').value;
+  if (val === CORRECT_PW) {
+    document.getElementById('lock-screen').style.display = 'none';
+    sessionStorage.setItem('unlocked','1');
+  } else {
+    const err = document.getElementById('pw-error');
+    err.style.opacity = '1';
+    document.getElementById('pw-input').value = '';
+    setTimeout(()=>err.style.opacity='0', 2000);
+  }
+}
+
+// ══════════════════════════════════
 //  INIT
 // ══════════════════════════════════
+// Check session (so you don't re-enter pw on same tab)
+if (sessionStorage.getItem('unlocked')==='1') {
+  document.getElementById('lock-screen').style.display='none';
+}
 renderSalary();
 </script>
 </body>
