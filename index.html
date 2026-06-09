@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>薪水分配 × 記帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0e0e12;
+    --surface:  #17171e;
+    --surface2: #1f1f28;
+    --border:   rgba(255,255,255,0.08);
+    --text:     #e8e8f0;
+    --muted:    rgba(232,232,240,0.4);
+    --accent:   #c9a96e;
+    --accent2:  #7eb8c9;
+    --danger:   #e07070;
+    --ok:       #7ec99a;
+    --radius:   14px;
+    --font:     'Noto Sans TC', sans-serif;
+    --mono:     'DM Mono', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    padding-bottom: 90px;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    z-index: 99;
+  }
+  nav button {
+    flex: 1; padding: 14px 0 10px;
+    background: none; border: none; color: var(--muted);
+    font-family: var(--font); font-size: 11px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    transition: color .2s;
+  }
+  nav button.active { color: var(--accent); }
+  nav button svg { width: 20px; height: 20px; }
+
+  /* ── PAGES ── */
+  .page { display: none; max-width: 520px; margin: 0 auto; padding: 24px 16px; }
+  .page.active { display: block; }
+
+  /* ── HEADER ── */
+  .page-header { margin-bottom: 24px; }
+  .page-header h2 { font-size: 22px; font-weight: 700; }
+  .page-header p { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  /* ── INPUTS ── */
+  input, select, textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-family: var(--font);
+    font-size: 14px; padding: 10px 12px; outline: none;
+    transition: border-color .2s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  select option { background: var(--surface2); }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 5px; }
+  .field { margin-bottom: 12px; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    padding: 10px 18px; border-radius: 8px; border: none;
+    font-family: var(--font); font-size: 14px; cursor: pointer;
+    font-weight: 600; transition: opacity .15s, transform .1s;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: var(--accent); color: #0e0e12; }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger)44; font-size: 12px; padding: 6px 12px; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-full { width: 100%; }
+
+  /* ── BADGE ── */
+  .badge {
+    display: inline-block; padding: 2px 9px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; font-family: var(--mono);
+  }
+
+  /* ── PROGRESS ── */
+  .prog-wrap { height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .prog-bar { height: 100%; border-radius: 3px; transition: width .4s ease; }
+
+  /* ── SALARY PAGE ── */
+  .salary-big input {
+    font-size: 28px; font-family: var(--mono); font-weight: 500;
+    text-align: center; letter-spacing: 2px; padding: 14px;
+    background: var(--surface2);
+  }
+  .alloc-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+  }
+  .alloc-row:last-child { border-bottom: none; }
+  .alloc-emoji { font-size: 20px; width: 28px; text-align: center; flex-shrink: 0; }
+  .alloc-label { flex: 1; font-size: 14px; font-weight: 500; }
+  .alloc-amount { font-family: var(--mono); font-size: 13px; color: var(--accent); min-width: 80px; text-align: right; }
+  .alloc-pct-wrap { display: flex; align-items: center; gap: 6px; }
+  .pct-input { width: 48px; text-align: center; padding: 4px 6px; font-family: var(--mono); font-size: 13px; }
+  .total-bar-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .tip-box {
+    background: var(--surface2); border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0; padding: 10px 12px;
+    font-size: 12px; color: var(--muted); line-height: 1.6;
+    margin-top: 6px; display: none;
+  }
+  .tip-box.show { display: block; }
+  .tip-toggle { font-size: 11px; color: var(--accent); cursor: pointer; background: none; border: none; font-family: var(--font); margin-top: 4px; }
+
+  /* ── ADD EXPENSE ── */
+  .cat-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+  .chip {
+    padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface2); color: var(--muted);
+    transition: all .15s;
+  }
+  .chip.selected { border-color: var(--accent); color: var(--accent); background: var(--accent)18; }
+
+  /* ── OVERVIEW ── */
+  .month-nav { display: flex; align-items: center; gap: 12px; justify-content: center; margin-bottom: 20px; }
+  .month-nav button { background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 6px 14px; cursor: pointer; font-size: 18px; }
+  .month-label { font-family: var(--mono); font-size: 15px; font-weight: 500; min-width: 100px; text-align: center; }
+  .summary-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-emoji { width: 28px; text-align: center; font-size: 18px; flex-shrink: 0; }
+  .summary-label { flex: 1; font-size: 13px; }
+  .summary-nums { text-align: right; }
+  .summary-spent { font-family: var(--mono); font-size: 13px; }
+  .summary-budget { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .over { color: var(--danger) !important; }
+  .under { color: var(--ok) !important; }
+
+  /* ── RECORDS ── */
+  .record-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .record-item:last-child { border-bottom: none; }
+  .record-emoji { width: 28px; text-align: center; font-size: 16px; flex-shrink: 0; }
+  .record-info { flex: 1; }
+  .record-cat { font-size: 12px; color: var(--muted); }
+  .record-note { font-size: 13px; font-weight: 500; }
+  .record-date { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .record-amount { font-family: var(--mono); font-size: 14px; font-weight: 500; flex-shrink: 0; }
+  .record-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 0 4px; transition: color .15s; }
+  .record-del:hover { color: var(--danger); }
+  .empty-state { text-align: center; color: var(--muted); padding: 40px 0; font-size: 14px; }
+
+  /* ── SETTINGS ── */
+  .cat-manage-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 0; border-bottom: 1px solid var(--border);
+  }
+  .cat-manage-row:last-child { border-bottom: none; }
+  .cat-manage-emoji { font-size: 18px; width: 28px; text-align: center; }
+  .cat-manage-label { flex: 1; font-size: 14px; }
+
+  /* ── UTILS ── */
+  .flex-between { display: flex; justify-content: space-between; align-items: center; }
+  .mt-8 { margin-top: 8px; }
+  .mt-16 { margin-top: 16px; }
+  .text-sm { font-size: 12px; }
+  .text-muted { color: var(--muted); }
+  .text-accent { color: var(--accent); }
+  .text-danger { color: var(--danger); }
+  .text-ok { color: var(--ok); }
+  .mono { font-family: var(--mono); }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+  .row-gap { display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ PAGE: SALARY ══════════════ -->
+<div class="page active" id="page-salary">
+  <div class="page-header">
+    <h2>薪水分配</h2>
+    <p>設定薪水與各類別預算比例</p>
+  </div>
+
+  <div class="card salary-big">
+    <label>本月薪水（NTD）</label>
+    <input type="number" id="salary-input" placeholder="0" min="0">
+  </div>
+
+  <div class="card">
+    <div class="total-bar-row">
+      <span class="text-sm text-muted">已分配</span>
+      <span class="text-sm mono" id="total-pct-label">0%</span>
+    </div>
+    <div class="prog-wrap">
+      <div class="prog-bar" id="total-prog" style="width:0%;background:var(--accent)"></div>
+    </div>
+  </div>
+
+  <div class="card" id="alloc-list"><!-- rendered by JS --></div>
+</div>
+
+<!-- ══════════════ PAGE: ADD ══════════════ -->
+<div class="page" id="page-add">
+  <div class="page-header">
+    <h2>新增記錄</h2>
+    <p>記下每筆花費</p>
+  </div>
+
+  <div class="card">
+    <div class="field">
+      <label>金額（NTD）</label>
+      <input type="number" id="exp-amount" placeholder="0" min="0">
+    </div>
+    <div class="field">
+      <label>分類</label>
+      <div class="cat-chips" id="exp-cat-chips"><!-- JS --></div>
+    </div>
+    <div class="field">
+      <label>備註（選填）</label>
+      <input type="text" id="exp-note" placeholder="例：跟凱咪吃午餐">
+    </div>
+    <div class="field">
+      <label>日期</label>
+      <input type="date" id="exp-date">
+    </div>
+    <button class="btn btn-primary btn-full mt-8" onclick="addExpense()">記下來</button>
+  </div>
+</div>
+
+<!-- ══════════════ PAGE: OVERVIEW ══════════════ -->
+<div class="page" id="page-overview">
+  <div class="page-header">
+    <h2>每月總覽</h2>
+    <p>預算 vs 實際花費</p>
+  </div>
+
+  <div class="month-nav">
+    <button onclick="shiftMonth(-1)">‹</button>
+    <div class="month-label" id="ov-month-label">—</div>
+    <button onclick="shiftMonth(1)">›</button>
+  </div>
+
+  <div class="card" id="ov-summary"><!-- JS --></div>
+  <div class="card mt-16" id="ov-total-card"><!-- JS --></div>
+</div>
+
+<!-- ══════════════ PAGE: RECORDS ══════════════ -->
+<div class="page" id="page-records">
+  <div class="page-header">
+    <h2>消費紀錄</h2>
+    <p>所有記錄</p>
+  </div>
+
+  <div class="month-nav">
+    <button onclick="shiftRecMonth(-1)">‹</button>
+    <div class="month-label" id="rec-month-label">—</div>
+    <button onclick="shiftRecMonth(1)">›</button>
+  </div>
+
+  <div class="card">
+    <label>篩選分類</label>
+    <select id="rec-filter" onchange="renderRecords()">
+      <option value="">全部</option>
+    </select>
+  </div>
+
+  <div id="rec-list"><!-- JS --></div>
+</div>
+
+<!-- ══════════════ PAGE: SETTINGS ══════════════ -->
+<div class="page" id="page-settings">
+  <div class="page-header">
+    <h2>設定</h2>
+    <p>管理分類、備份資料</p>
+  </div>
+
+  <div class="card">
+    <div class="flex-between" style="margin-bottom:12px">
+      <span style="font-weight:600">分類管理</span>
+    </div>
+    <div id="cat-manage-list"><!-- JS --></div>
+    <hr class="divider">
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">新增自訂分類</p>
+    <div class="row-gap">
+      <input type="text" id="new-cat-emoji" placeholder="🏷️" style="width:56px;text-align:center;flex-shrink:0">
+      <input type="text" id="new-cat-name" placeholder="分類名稱">
+      <button class="btn btn-primary btn-sm" onclick="addCategory()" style="flex-shrink:0">新增</button>
+    </div>
+  </div>
+
+  <div class="card mt-16">
+    <div style="font-weight:600;margin-bottom:12px">資料備份</div>
+    <div class="row-gap">
+      <button class="btn btn-ghost btn-sm" onclick="exportData()" style="flex:1">匯出 JSON</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-file').click()" style="flex:1">匯入 JSON</button>
+    </div>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)">
+    <p class="text-sm text-muted mt-8">換裝置前請先匯出備份</p>
+  </div>
+
+  <div class="card mt-16">
+    <div style="font-weight:600;margin-bottom:4px">關於這個 App</div>
+    <p class="text-sm text-muted">資料儲存在本機瀏覽器，不會上傳任何地方。</p>
+  </div>
+</div>
+
+<!-- ══════════════ NAV ══════════════ -->
+<nav>
+  <button class="active" onclick="showPage('salary',this)" id="nav-salary">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    薪水
+  </button>
+  <button onclick="showPage('add',this)" id="nav-add">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    記帳
+  </button>
+  <button onclick="showPage('overview',this)" id="nav-overview">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    總覽
+  </button>
+  <button onclick="showPage('records',this)" id="nav-records">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    紀錄
+  </button>
+  <button onclick="showPage('settings',this)" id="nav-settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    設定
+  </button>
+</nav>
+
+<script>
+// ══════════════════════════════════
+//  STATE & STORAGE
+// ══════════════════════════════════
+const DEFAULT_CATS = [
+  { id:'daily',   emoji:'🏠', name:'日常支出', pct:50, tip:'食衣住行、水電、交通、電話費。超過這個數字要看看哪裡漏了！' },
+  { id:'learn',   emoji:'📚', name:'學習類',   pct:8,  tip:'課程、書籍、英文、工具訂閱。投資自己永遠不虧本。' },
+  { id:'emerg',   emoji:'🛡️', name:'緊急備用', pct:8,  tip:'目標：存到 3–6 個月生活費後可以停，轉去投資。' },
+  { id:'invest',  emoji:'📈', name:'投資用',   pct:15, tip:'ETF、基金、股票。緊急備用存滿後可把比例往上調。' },
+  { id:'goal',    emoji:'🎯', name:'目標儲蓄', pct:7,  tip:'婚紗、蜜月、大件購物──專款專用，另開子帳戶，別亂動它。' },
+  { id:'fun',     emoji:'🎉', name:'娛樂犒賞', pct:5,  tip:'這筆錢花掉不用愧疚，它的任務就是讓你快樂。' },
+  { id:'social',  emoji:'🎁', name:'人情往來', pct:3,  tip:'婚喪喜慶、朋友禮物。台灣人情費往往超乎預期，先留著。' },
+  { id:'health',  emoji:'🏥', name:'健康醫療', pct:4,  tip:'健檢、牙醫、保健品。現在省健康，以後花更多。' },
+];
+
+function load(key, def) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; }
+}
+function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+let salary   = load('salary', 0);
+let cats     = load('cats', DEFAULT_CATS);
+let expenses = load('expenses', []);
+
+let ovMonth  = new Date().toISOString().slice(0,7);
+let recMonth = new Date().toISOString().slice(0,7);
+let activeCat = cats[0]?.id || '';
+
+// ══════════════════════════════════
+//  NAV
+// ══════════════════════════════════
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+  if (id==='salary')   renderSalary();
+  if (id==='add')      renderAddPage();
+  if (id==='overview') renderOverview();
+  if (id==='records')  renderRecords();
+  if (id==='settings') renderSettings();
+}
+
+// ══════════════════════════════════
+//  SALARY PAGE
+// ══════════════════════════════════
+function renderSalary() {
+  const inp = document.getElementById('salary-input');
+  inp.value = salary || '';
+
+  const total = cats.reduce((s,c)=>s+c.pct,0);
+  document.getElementById('total-pct-label').textContent = total+'%';
+  const prog = document.getElementById('total-prog');
+  prog.style.width = Math.min(total,100)+'%';
+  prog.style.background = total>100 ? 'var(--danger)' : total===100 ? 'var(--ok)' : 'var(--accent)';
+
+  const list = document.getElementById('alloc-list');
+  list.innerHTML = cats.map((c,i) => {
+    const amt = salary ? Math.round(salary * c.pct / 100) : null;
+    return `
+    <div class="alloc-row">
+      <div class="alloc-emoji">${c.emoji}</div>
+      <div style="flex:1">
+        <div class="flex-between">
+          <span class="alloc-label">${c.name}</span>
+          <span class="alloc-amount">${amt!==null ? 'NT$'+amt.toLocaleString('zh-TW') : '—'}</span>
+        </div>
+        <div class="alloc-pct-wrap mt-8">
+          <input type="range" min="0" max="70" value="${c.pct}"
+            style="flex:1;accent-color:var(--accent)"
+            oninput="updatePct('${c.id}',this.value)">
+          <input class="pct-input" type="number" min="0" max="100" value="${c.pct}"
+            oninput="updatePct('${c.id}',this.value)">
+          <span class="text-sm text-muted">%</span>
+        </div>
+        <button class="tip-toggle" onclick="toggleTip('tip-${c.id}')">💡 提示</button>
+        <div class="tip-box" id="tip-${c.id}">${c.tip}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('salary-input').addEventListener('input', function(){
+  salary = parseFloat(this.value)||0;
+  save('salary', salary);
+  renderSalary();
+});
+
+function updatePct(id, val) {
+  const n = Math.max(0, Math.min(100, parseInt(val)||0));
+  cats = cats.map(c => c.id===id ? {...c, pct:n} : c);
+  save('cats', cats);
+  renderSalary();
+}
+function toggleTip(id) {
+  document.getElementById(id).classList.toggle('show');
+}
+
+// ══════════════════════════════════
+//  ADD PAGE
+// ══════════════════════════════════
+function renderAddPage() {
+  // date default today
+  const d = document.getElementById('exp-date');
+  if (!d.value) d.value = new Date().toISOString().slice(0,10);
+
+  renderCatChips();
+}
+function renderCatChips() {
+  const wrap = document.getElementById('exp-cat-chips');
+  wrap.innerHTML = cats.map(c=>`
+    <div class="chip ${activeCat===c.id?'selected':''}" onclick="selectCat('${c.id}')">${c.emoji} ${c.name}</div>
+  `).join('');
+}
+function selectCat(id) { activeCat=id; renderCatChips(); }
+
+function addExpense() {
+  const amt = parseFloat(document.getElementById('exp-amount').value);
+  if (!amt || amt<=0) { alert('請輸入有效金額'); return; }
+  if (!activeCat) { alert('請選擇分類'); return; }
+  const note = document.getElementById('exp-note').value.trim() || '未備註';
+  const date = document.getElementById('exp-date').value || new Date().toISOString().slice(0,10);
+  const cat = cats.find(c=>c.id===activeCat);
+  expenses.push({ id: Date.now(), catId: activeCat, catName: cat.name, catEmoji: cat.emoji, amount: amt, note, date });
+  save('expenses', expenses);
+  document.getElementById('exp-amount').value = '';
+  document.getElementById('exp-note').value = '';
+  showToast(`記好了！${cat.emoji} NT$${amt.toLocaleString('zh-TW')}`);
+}
+
+// ══════════════════════════════════
+//  OVERVIEW PAGE
+// ══════════════════════════════════
+function shiftMonth(d) {
+  const [y,m] = ovMonth.split('-').map(Number);
+  const dt = new Date(y, m-1+d, 1);
+  ovMonth = dt.toISOString().slice(0,7);
+  renderOverview();
+}
+function renderOverview() {
+  document.getElementById('ov-month-label').textContent = ovMonth.replace('-','年')+'月';
+  const monthExp = expenses.filter(e=>e.date.startsWith(ovMonth));
+  const totalSpent = monthExp.reduce((s,e)=>s+e.amount,0);
+  const totalBudget = salary;
+
+  // per category
+  const rows = cats.map(c => {
+    const spent = monthExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0);
+    const budget = salary ? Math.round(salary*c.pct/100) : null;
+    const over = budget && spent > budget;
+    const pct = budget ? Math.min(spent/budget*100,100) : 0;
+    const color = over ? 'var(--danger)' : spent>0 ? 'var(--accent)' : 'rgba(255,255,255,.15)';
+    return `
+    <div class="summary-row">
+      <div class="summary-emoji">${c.emoji}</div>
+      <div style="flex:1">
+        <div class="flex-between">
+          <span class="summary-label">${c.name}</span>
+          <div class="summary-nums">
+            <div class="summary-spent ${over?'over':''} mono">NT$${spent.toLocaleString('zh-TW')}</div>
+            ${budget!==null?`<div class="summary-budget">/ NT$${budget.toLocaleString('zh-TW')}</div>`:''}
+          </div>
+        </div>
+        <div class="prog-wrap mt-8"><div class="prog-bar" style="width:${pct}%;background:${color}"></div></div>
+        ${over?`<div class="text-sm text-danger" style="margin-top:4px">⚠️ 超支 NT$${(spent-budget).toLocaleString('zh-TW')}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('ov-summary').innerHTML = rows || '<div class="empty-state">這個月還沒有紀錄</div>';
+
+  const diff = totalBudget - totalSpent;
+  const diffColor = diff>=0 ? 'var(--ok)' : 'var(--danger)';
+  document.getElementById('ov-total-card').innerHTML = `
+    <div class="flex-between" style="margin-bottom:8px">
+      <span class="text-sm text-muted">本月總支出</span>
+      <span class="mono" style="font-size:18px;font-weight:700">NT$${totalSpent.toLocaleString('zh-TW')}</span>
+    </div>
+    ${totalBudget ? `
+    <div class="flex-between">
+      <span class="text-sm text-muted">薪水剩餘</span>
+      <span class="mono" style="color:${diffColor}">NT$${Math.abs(diff).toLocaleString('zh-TW')} ${diff>=0?'結餘':'超支'}</span>
+    </div>` : '<p class="text-sm text-muted">回薪水頁設定金額，就能看預算對比</p>'}
+  `;
+}
+
+// ══════════════════════════════════
+//  RECORDS PAGE
+// ══════════════════════════════════
+function shiftRecMonth(d) {
+  const [y,m] = recMonth.split('-').map(Number);
+  const dt = new Date(y, m-1+d, 1);
+  recMonth = dt.toISOString().slice(0,7);
+  renderRecords();
+}
+function renderRecords() {
+  document.getElementById('rec-month-label').textContent = recMonth.replace('-','年')+'月';
+
+  // filter select
+  const sel = document.getElementById('rec-filter');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">全部分類</option>' +
+    cats.map(c=>`<option value="${c.id}" ${prev===c.id?'selected':''}>${c.emoji} ${c.name}</option>`).join('');
+
+  const filterCat = sel.value;
+  let list = expenses.filter(e=>e.date.startsWith(recMonth));
+  if (filterCat) list = list.filter(e=>e.catId===filterCat);
+  list.sort((a,b)=>b.date.localeCompare(a.date));
+
+  const wrap = document.getElementById('rec-list');
+  if (!list.length) {
+    wrap.innerHTML = '<div class="empty-state">這個月沒有符合的紀錄<br><span style="font-size:24px;margin-top:8px;display:block">🗒️</span></div>';
+    return;
+  }
+  wrap.innerHTML = list.map(e=>`
+    <div class="card record-item">
+      <div class="record-emoji">${e.catEmoji||'💰'}</div>
+      <div class="record-info">
+        <div class="record-cat">${e.catName}</div>
+        <div class="record-note">${e.note}</div>
+        <div class="record-date">${e.date}</div>
+      </div>
+      <div class="record-amount">NT$${e.amount.toLocaleString('zh-TW')}</div>
+      <button class="record-del" onclick="deleteExpense(${e.id})" title="刪除">×</button>
+    </div>
+  `).join('');
+}
+
+function deleteExpense(id) {
+  if (!confirm('確定刪除這筆紀錄？')) return;
+  expenses = expenses.filter(e=>e.id!==id);
+  save('expenses', expenses);
+  renderRecords();
+}
+
+// ══════════════════════════════════
+//  SETTINGS PAGE
+// ══════════════════════════════════
+function renderSettings() {
+  const list = document.getElementById('cat-manage-list');
+  list.innerHTML = cats.map(c=>`
+    <div class="cat-manage-row">
+      <div class="cat-manage-emoji">${c.emoji}</div>
+      <div class="cat-manage-label">${c.name}</div>
+      <button class="btn btn-danger" onclick="deleteCategory('${c.id}')">刪除</button>
+    </div>
+  `).join('');
+}
+
+function addCategory() {
+  const emoji = document.getElementById('new-cat-emoji').value.trim() || '🏷️';
+  const name  = document.getElementById('new-cat-name').value.trim();
+  if (!name) { alert('請輸入分類名稱'); return; }
+  const id = 'cat_'+Date.now();
+  cats.push({ id, emoji, name, pct:5, tip:'這是自訂分類，記得在薪水頁調整預算比例。' });
+  save('cats', cats);
+  document.getElementById('new-cat-emoji').value='';
+  document.getElementById('new-cat-name').value='';
+  renderSettings();
+  showToast(`已新增分類 ${emoji} ${name}`);
+}
+
+function deleteCategory(id) {
+  if (!confirm('刪除分類後，該分類的記錄不會消失，但不會顯示在分類裡。確定刪除？')) return;
+  cats = cats.filter(c=>c.id!==id);
+  save('cats', cats);
+  renderSettings();
+}
+
+// ══════════════════════════════════
+//  EXPORT / IMPORT
+// ══════════════════════════════════
+function exportData() {
+  const data = { salary, cats, expenses, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `budget-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+function importData(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.cats) { cats=data.cats; save('cats',cats); }
+      if (data.expenses) { expenses=data.expenses; save('expenses',expenses); }
+      if (data.salary!==undefined) { salary=data.salary; save('salary',salary); }
+      showToast('匯入成功！');
+      renderSettings();
+    } catch { alert('檔案格式不對，請使用之前匯出的 JSON'); }
+  };
+  reader.readAsText(file);
+}
+
+// ══════════════════════════════════
+//  TOAST
+// ══════════════════════════════════
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--accent);color:#0e0e12;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:999;transition:opacity .3s;pointer-events:none';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.style.opacity='0', 2200);
+}
+
+// ══════════════════════════════════
+//  INIT
+// ══════════════════════════════════
+renderSalary();
+</script>
+</body>
+</html>
